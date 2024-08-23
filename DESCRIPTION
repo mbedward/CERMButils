@@ -1,0 +1,20 @@
+Package: CERMButils
+Type: Package
+Title: Functions for massaging fire data
+Version: 0.1.0
+Description: This package provides utility functions to work with bushfire data.
+Authors@R: c(
+    person("Michael", "Bedward", , "mbedward@uow.edu.au", role = c("cre", "aut")),
+    person("Maximilien", "Desservettaz", "mdesserv@uow.edu.au", role = "aut")
+  )
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Depends: R (>= 4.0.0)
+Imports: 
+    checkmate,
+    dplyr,
+    glue,
+    magrittr,
+    sf
+RoxygenNote: 7.3.1
