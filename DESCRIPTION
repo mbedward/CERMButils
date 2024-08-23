@@ -18,3 +18,5 @@ Imports:
     magrittr,
     sf
 RoxygenNote: 7.3.1
+URL: https://github.com/mbedward/CERMButils
+BugReports: https://github.com/mbedward/CERMButils/issues
