@@ -115,46 +115,55 @@ make_progressions <- function(x,
   # Sort data by time
   x <- dplyr::arrange(x, dplyr::across(dplyr::all_of(time_cols)))
 
-  # Initialize the outer fire extent
-  gouter <- sf::st_geometry(x[1,])
-
   # From the second time step onwards, identify the fire progression (if any) and
   # update the cumulative extent.
   #
-  gprog <- lapply(2:nrow(x), function(i) {
-    res <- NULL
-    g <- sf::st_geometry(x[i,])
+  gprog <- lapply(1:nrow(x), function(i) {
+    if (i == 1) {
+      # Initialize the outer fire extent and return it as the first progression
+      # polygon
+      gouter <- sf::st_geometry(x[i,])
+      res <- gouter
 
-    # Get the spatial difference (new extent, if any) and format as
-    # an `sfc` geometry list object with the parent CRS applied. This
-    # ensures that st_area will provide values in m^2 (below).
-    gnew <- sf::st_difference(g, gouter) %>%
-      sf::st_sfc(., crs = sf::st_crs(x)) %>%
-      sf::st_make_valid()
+    } else {
+      # For subsequent extent polygons, derive the difference between the
+      # previous outer polygon and the current extent
+      #
+      res <- NULL
+      g <- sf::st_geometry(x[i,])
 
-    # Discard any non-polygonal geometries and any polygons with area
-    # less than the minimum threshold.
-    is_poly <- sf::st_is(gnew, c("POLYGON", "MULTIPOLYGON"))
-    if (any(is_poly)) {
-      gnew <- gnew[is_poly]
+      # Get the spatial difference (new extent, if any) and format as
+      # an `sfc` geometry list object with the parent CRS applied. This
+      # ensures that st_area will provide values in m^2 (below).
+      gnew <- sf::st_difference(g, gouter) %>%
+        sf::st_sfc(., crs = sf::st_crs(x)) %>%
+        sf::st_make_valid()
 
-      # Convert any multipolygons to polygons
-      gnew <- sf::st_cast(gnew, "POLYGON")
+      # Discard any non-polygonal geometries and any polygons with area
+      # less than the minimum threshold.
+      is_poly <- sf::st_is(gnew, c("POLYGON", "MULTIPOLYGON"))
+      if (any(is_poly)) {
+        gnew <- gnew[is_poly]
 
-      # Check area
-      a <- as.numeric( sf::st_area(gnew) )
-      ok <- a >= min_geom_area
-      if (any(ok)) {
-        gnew <- gnew[ok]
+        # Convert any multipolygons to polygons
+        gnew <- sf::st_cast(gnew, "POLYGON")
 
-        # Update outer extent so far
-        gouter <<- sf::st_union(gouter, gnew) %>%
-          sf::st_union() %>%  # second call to dissolve internal boundaries
-          sf::st_make_valid()
+        # Check area
+        a <- as.numeric( sf::st_area(gnew) )
+        ok <- a >= min_geom_area
+        if (any(ok)) {
+          gnew <- gnew[ok]
 
-        res <- sf::st_cast(gnew, "POLYGON")
+          # Update outer extent so far
+          gouter <<- sf::st_union(gouter, gnew) %>%
+            sf::st_union() %>%  # second call to dissolve internal boundaries
+            sf::st_make_valid()
+
+          res <- sf::st_cast(gnew, "POLYGON")
+        }
       }
     }
+
     res
   })
 
