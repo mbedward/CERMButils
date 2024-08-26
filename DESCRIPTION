@@ -1,7 +1,7 @@
 Package: CERMButils
 Type: Package
 Title: Functions for massaging fire data
-Version: 0.1.0
+Version: 0.1.1
 Description: This package provides utility functions to work with bushfire data.
 Authors@R: c(
     person("Michael", "Bedward", , "mbedward@uow.edu.au", role = c("cre", "aut")),

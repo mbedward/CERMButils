@@ -4,18 +4,43 @@
 \alias{make_progressions}
 \title{Derive a set of progression polygons}
 \usage{
-make_progressions(x, time_cols, min_geom_area = 100)
+make_progressions(
+  x,
+  time_cols,
+  out_epsg = 8058,
+  min_geom_area = 100,
+  replicate_times = c("largest", "smallest", "fail"),
+  dTolerance = 2
+)
 }
 \arguments{
 \item{x}{An \code{sf} spatial data frame with one or more columns defining time
 and polygonal features representing the total extent of a fire at each time.}
 
 \item{time_cols}{A character vector of one or more column names that define
-the time steps for the progressions.}
+the time steps for the progressions. Normally a time column will will hold
+a Date or Date-Time value (e.g. POSIX.ct) but any scalar variable type that
+can be sorted is acceptable. When two or more time columns are specified,
+sorting will be based on the provided order of column names.}
+
+\item{out_epsg}{Integer EPSG code specifying the map projection for the
+output progression polygons. Default is 8058 (NSW Lambert / GDA2020).}
 
 \item{min_geom_area}{Threshold minimum area (square metres) for progression
 polygons. If the progression for a given time step consists of two or more
 spatially distinct parts, the threshold is applied to each individually.}
+
+\item{replicate_times}{A single string that specifies what to do if there is
+more than one input data record for any time step. Options are:
+\code{'largest'} (choose the record with the largest extent polygon area);
+\code{'smallest'} (choose the record with the largest extent polygon area);
+\code{'fail'} (stop with an error message). The default is
+\code{'largest'}. The argument may be abbreviated and is case-sensitive.}
+
+\item{dTolerance}{Distance tolerance used to simplify the input extent
+polygons using the \code{\link[sf]{st_simplify}} function. Default is 2 for
+a minimum between vertex distance of 2 metres. Set to 0 to omit the
+simplification step.}
 }
 \value{
 An \code{sf} spatial data frame of progression polygons with
