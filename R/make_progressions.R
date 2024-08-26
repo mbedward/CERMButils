@@ -122,7 +122,7 @@ make_progressions <- function(x,
     if (i == 1) {
       # Initialize the outer fire extent and return it as the first progression
       # polygon
-      gouter <- sf::st_geometry(x[i,])
+      gouter <<- sf::st_geometry(x[i,])
       res <- gouter
 
     } else {
