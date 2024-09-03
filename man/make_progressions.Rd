@@ -9,7 +9,7 @@ make_progressions(
   time_cols,
   out_epsg = 8058,
   min_geom_area = 100,
-  replicate_times = c("largest", "smallest", "fail"),
+  replicate_times = c("merge", "largest", "smallest", "fail"),
   dTolerance = 2
 )
 }
@@ -32,10 +32,12 @@ spatially distinct parts, the threshold is applied to each individually.}
 
 \item{replicate_times}{A single string that specifies what to do if there is
 more than one input data record for any time step. Options are:
+\code{'merge'} (merge feature geometries within each time step);
 \code{'largest'} (choose the record with the largest extent polygon area);
 \code{'smallest'} (choose the record with the largest extent polygon area);
-\code{'fail'} (stop with an error message). The default is
-\code{'largest'}. The argument may be abbreviated and is case-sensitive.}
+\code{'fail'} (stop with an error message).
+The default is \code{'merge'}. The argument may be abbreviated and is
+case-sensitive.}
 
 \item{dTolerance}{Distance tolerance used to simplify the input extent
 polygons using the \code{\link[sf]{st_simplify}} function. Default is 2 for
@@ -44,7 +46,7 @@ simplification step.}
 }
 \value{
 An \code{sf} spatial data frame of progression polygons with
-  attribute values copied from the input data.
+  time column(s) copied from the input fire extent data.
 }
 \description{
 This function takes a spatial data frame of fire extent polygons with one or

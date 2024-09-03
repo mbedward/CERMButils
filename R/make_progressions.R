@@ -22,10 +22,12 @@
 #'
 #' @param replicate_times A single string that specifies what to do if there is
 #'   more than one input data record for any time step. Options are:
+#'   \code{'merge'} (merge feature geometries within each time step);
 #'   \code{'largest'} (choose the record with the largest extent polygon area);
 #'   \code{'smallest'} (choose the record with the largest extent polygon area);
-#'   \code{'fail'} (stop with an error message). The default is
-#'   \code{'largest'}. The argument may be abbreviated and is case-sensitive.
+#'   \code{'fail'} (stop with an error message).
+#'   The default is \code{'merge'}. The argument may be abbreviated and is
+#'   case-sensitive.
 #'
 #' @param dTolerance Distance tolerance used to simplify the input extent
 #'   polygons using the \code{\link[sf]{st_simplify}} function. Default is 2 for
@@ -33,7 +35,7 @@
 #'   simplification step.
 #'
 #' @return An \code{sf} spatial data frame of progression polygons with
-#'   attribute values copied from the input data.
+#'   time column(s) copied from the input fire extent data.
 #'
 #' @export
 #'
@@ -41,7 +43,7 @@ make_progressions <- function(x,
                               time_cols,
                               out_epsg = 8058,
                               min_geom_area = 100,
-                              replicate_times = c('largest', 'smallest', 'fail'),
+                              replicate_times = c('merge', 'largest', 'smallest', 'fail'),
                               dTolerance = 2) {
 
   checkmate::assert_class(x, "sf")
@@ -88,7 +90,18 @@ make_progressions <- function(x,
                          and replicate_times was set to 'fail'")
       stop(msg)
 
-    } else {
+    } else if (replicate_times == "merge") {
+      # Make sure that the geometry column is 'geom' so the dplyr::summarize
+      # call is easier to code
+      gname <- attr(x, "sf_column", exact = TRUE)
+      i <- which(colnames(x) == gname)
+      colnames(x)[i] <- "geom"
+
+      x <- x %>%
+        dplyr::group_by(dplyr::across(dplyr::all_of(time_cols))) %>%
+        dplyr::summarize(geom = st_union(geom))
+
+    } else {  # 'largest' or 'smallest'
       # Choose one record per time based on the largest or smallest feature area
       a <- as.numeric( sf::st_area(x) )
 
@@ -171,7 +184,7 @@ make_progressions <- function(x,
   ilen <- lengths(gprog)
   indices <- rep(seq_along(ilen), ilen) + 1
 
-  dat_prog <- sf::st_drop_geometry( x[indices, ] )
+  dat_prog <- sf::st_drop_geometry( x[indices, time_cols] )
   gprog <- do.call(c, gprog)
   dat_prog$geom <- gprog
   dat_prog <- sf::st_as_sf(dat_prog)
