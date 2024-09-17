@@ -9,6 +9,7 @@ make_progressions(
   time_cols,
   out_epsg = 8058,
   min_geom_area = 100,
+  unique_geom = TRUE,
   replicate_times = c("merge", "largest", "smallest", "fail"),
   dTolerance = 2
 )
@@ -29,6 +30,11 @@ output progression polygons. Default is 8058 (NSW Lambert / GDA2020).}
 \item{min_geom_area}{Threshold minimum area (square metres) for progression
 polygons. If the progression for a given time step consists of two or more
 spatially distinct parts, the threshold is applied to each individually.}
+
+\item{unique_geom}{(logical) If \code{TRUE} (the default), any group of
+records with identical geometries will be reduced to a single record, being
+that with the earliest time in the group. If \code{FALSE} this step will be
+skipped.}
 
 \item{replicate_times}{A single string that specifies what to do if there is
 more than one input data record for any time step. Options are:

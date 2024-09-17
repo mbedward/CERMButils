@@ -20,6 +20,11 @@
 #'   polygons. If the progression for a given time step consists of two or more
 #'   spatially distinct parts, the threshold is applied to each individually.
 #'
+#' @param unique_geom (logical) If \code{TRUE} (the default), any group of
+#'   records with identical geometries will be reduced to a single record, being
+#'   that with the earliest time in the group. If \code{FALSE} this step will be
+#'   skipped.
+#'
 #' @param replicate_times A single string that specifies what to do if there is
 #'   more than one input data record for any time step. Options are:
 #'   \code{'merge'} (merge feature geometries within each time step);
@@ -43,6 +48,7 @@ make_progressions <- function(x,
                               time_cols,
                               out_epsg = 8058,
                               min_geom_area = 100,
+                              unique_geom = TRUE,
                               replicate_times = c('merge', 'largest', 'smallest', 'fail'),
                               dTolerance = 2) {
 
@@ -52,6 +58,9 @@ make_progressions <- function(x,
   if (is.na(the_crs)) {
     stop("The input sf data frame must have a coordinate reference system defined")
   }
+
+  # Attempt to fix any invalid geometries
+  x <- sf::st_make_valid(x)
 
   checkmate::assert_integerish(out_epsg, any.missing = FALSE, len = 1)
   x <- sf::st_transform(x, out_epsg)
@@ -69,15 +78,21 @@ make_progressions <- function(x,
 
   checkmate::assert_number(min_geom_area, lower = 0)
 
+  checkmate::assert_flag(unique_geom)
+
   replicate_times <- match.arg(replicate_times)
 
-  # Subset the input data to records with geometrically distinct features
-  # gunique <- unique(sf::st_geometry(x)) %>%
-  #   sf::st_as_sfc()
-  #
-  # sf::st_crs(gunique) <- sf::st_crs(x)
-  # ii <- match(gunique, sf::st_geometry(x))
-  # x <- x[ii, ]
+  # If requested, subset the input data to records with geometrically
+  # distinct features
+  if (unique_geom) {
+    x <- x %>%
+      sf::st_make_valid() %>%
+      dplyr::group_by(geom) %>%
+      dplyr::mutate(.time_order = order(.data[[time_cols]])) %>%
+      dplyr::ungroup() %>%
+      dplyr::filter(.time_order == 1) %>%
+      dplyr::select(-.time_order)
+  }
 
   # Check whether times are unique
   xtimes <- apply(sf::st_drop_geometry(x[, time_cols]), 1, paste, collapse=" ")
