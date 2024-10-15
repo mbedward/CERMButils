@@ -7,6 +7,7 @@
 make_progressions(
   x,
   time_cols,
+  cookie_cutter = NULL,
   out_epsg = 8058,
   min_geom_area = 100,
   unique_geom = TRUE,
@@ -24,8 +25,15 @@ a Date or Date-Time value (e.g. POSIX.ct) but any scalar variable type that
 can be sorted is acceptable. When two or more time columns are specified,
 sorting will be based on the provided order of column names.}
 
+\item{cookie_cutter}{An optional \code{sf} spatial data frame of polygonal
+features that define the outer-most supposed extent of the fire. If
+provided, progression polygons will be clipped and or removed so that none
+extend outside the cookie features.}
+
 \item{out_epsg}{Integer EPSG code specifying the map projection for the
-output progression polygons. Default is 8058 (NSW Lambert / GDA2020).}
+output progression polygons. This \emph{must} be a projected coordinate
+system with metres as map units. The default is 8058 (NSW Lambert /
+GDA2020).}
 
 \item{min_geom_area}{Threshold minimum area (square metres) for progression
 polygons. If the progression for a given time step consists of two or more

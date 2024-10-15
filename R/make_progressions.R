@@ -13,8 +13,15 @@
 #'   can be sorted is acceptable. When two or more time columns are specified,
 #'   sorting will be based on the provided order of column names.
 #'
+#' @param cookie_cutter An optional \code{sf} spatial data frame of polygonal
+#'   features that define the outer-most supposed extent of the fire. If
+#'   provided, progression polygons will be clipped and or removed so that none
+#'   extend outside the cookie features.
+#'
 #' @param out_epsg Integer EPSG code specifying the map projection for the
-#'   output progression polygons. Default is 8058 (NSW Lambert / GDA2020).
+#'   output progression polygons. This \emph{must} be a projected coordinate
+#'   system with metres as map units. The default is 8058 (NSW Lambert /
+#'   GDA2020).
 #'
 #' @param min_geom_area Threshold minimum area (square metres) for progression
 #'   polygons. If the progression for a given time step consists of two or more
@@ -46,6 +53,7 @@
 #'
 make_progressions <- function(x,
                               time_cols,
+                              cookie_cutter = NULL,
                               out_epsg = 8058,
                               min_geom_area = 100,
                               unique_geom = TRUE,
@@ -54,20 +62,33 @@ make_progressions <- function(x,
 
   checkmate::assert_class(x, "sf")
 
-  the_crs <- sf::st_crs(x)
-  if (is.na(the_crs)) {
+  if (is.na( sf::st_crs(x) )) {
     stop("The input sf data frame must have a coordinate reference system defined")
   }
 
   # Attempt to fix any invalid geometries
   x <- sf::st_make_valid(x)
 
+  # Ensure that the name of the geometry column is 'geom' to make the code for
+  # later steps a bit less fiddly
+  sf::st_geometry(x) <- "geom"
+
+  # Check that the output CRS is defined and has metres as map units
   checkmate::assert_integerish(out_epsg, any.missing = FALSE, len = 1)
+
+  units_txt <- units::deparse_unit(sf::st_crs(out_epsg)$ud_unit)
+  if (!units_txt == "m") {
+    msg <- glue::glue("Argument out_epsg ({out_epsg}) does not have metres as map units")
+    stop(msg)
+  }
+
+  # Transform the input extent polygons into the output CRS if required
   x <- sf::st_transform(x, out_epsg)
 
+  # Check distance tolerance used to optionally generalize polygon vertices
   checkmate::assert_number(dTolerance, lower = 0)
-  if (dTolerance > 0) x <- sf::st_simplify(x, dTolerance = dTolerance)
 
+  # Check the column(s) specified for time
   checkmate::assert_character(time_cols, min.len = 1, any.missing = FALSE)
   ok <- time_cols %in% colnames(x)
   if (!all(ok)) {
@@ -82,8 +103,49 @@ make_progressions <- function(x,
 
   replicate_times <- match.arg(replicate_times)
 
-  # If requested, subset the input data to records with geometrically
-  # distinct features
+  # Remove any extent records with non-polygonal geometries
+  n_in <- nrow(x)
+  x <- .remove_non_polygonal(x)
+  n_poly <- nrow(x)
+
+  if (n_poly == 0) {
+    stop("There are no valid polygonal features in the input extent data")
+  } else if (n_poly < n_in) {
+    msg <- glue::glue("Discarding {n_in - n_poly} input record(s) for features with empty or non-polygonal geometries")
+    warning(msg, immediate. = TRUE)
+  }
+
+  # Check cookie_cutter polygons if provided
+  if (!is.null(cookie_cutter)) {
+    # Check that the cookie cutter object is an sf data frame
+    checkmate::assert_class(cookie_cutter, "sf")
+
+    # Check it has a CRS defined
+    if (is.na( sf::st_crs(cookie_cutter) )) {
+      stop("The sf data frame for cookie_cutter must have a coordinate reference system defined")
+    }
+
+    # Re-project if required
+    cookie_cutter <- sf::st_transform(cookie_cutter, out_epsg)
+
+    # Remove any non-polygonal features
+    cookie_cutter <- .remove_non_polygonal(cookie_cutter)
+    if (nrow(cookie_cutter) == 0) stop("No polygonal features in the sf data frame set for argument cookie_cutter")
+
+    # Subset cookie cutter polygons to those that intersect the bounding box of the extent polygons
+    bb_x <- sf::st_bbox(x)
+    cookie_cutter <- sf::st_crop(cookie_cutter, bb_x)
+
+    if (nrow(cookie_cutter) == 0) {
+      warning("There is no overlap between the cookie_cutter and fire extent polygons",
+              immediate. = TRUE)
+
+      cookie_cutter <- NULL
+    }
+  }
+
+  # If requested, subset the input data to unique geometries by taking the
+  # earliest extent polygon from each group of spatially identical polygons
   if (unique_geom) {
     x <- x %>%
       sf::st_make_valid() %>%
@@ -106,15 +168,9 @@ make_progressions <- function(x,
       stop(msg)
 
     } else if (replicate_times == "merge") {
-      # Make sure that the geometry column is 'geom' so the dplyr::summarize
-      # call is easier to code
-      gname <- attr(x, "sf_column", exact = TRUE)
-      i <- which(colnames(x) == gname)
-      colnames(x)[i] <- "geom"
-
       x <- x %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(time_cols))) %>%
-        dplyr::summarize(geom = st_union(geom))
+        dplyr::summarize(geom = sf::st_union(geom))
 
     } else {  # 'largest' or 'smallest'
       # Choose one record per time based on the largest or smallest feature area
@@ -140,11 +196,19 @@ make_progressions <- function(x,
     }
   }
 
+
+  # Generalize the feature geometries if requested
+  if (dTolerance > 0) {
+    x <- sf::st_simplify(x, dTolerance = dTolerance)
+    if (!is.null(cookie_cutter)) cookie_cutter <- sf::st_simplify(cookie_cutter, dTolerance = dTolerance)
+  }
+
+
   # Sort data by time
   x <- dplyr::arrange(x, dplyr::across(dplyr::all_of(time_cols)))
 
-  # From the second time step onwards, identify the fire progression (if any) and
-  # update the cumulative extent.
+  # Process the extent polygons ordered by time and derive the progression
+  # polygons
   #
   gprog <- lapply(1:nrow(x), function(i) {
     if (i == 1) {
@@ -182,6 +246,11 @@ make_progressions <- function(x,
         if (any(ok)) {
           gnew <- gnew[ok]
 
+          # Cookie cutter the new feature
+          gnew <- gnew
+
+          # Guard against the new feature not being a valid polygon
+
           # Update outer extent so far
           gouter <<- sf::st_union(gouter, gnew) %>%
             sf::st_union() %>%  # second call to dissolve internal boundaries
@@ -204,6 +273,29 @@ make_progressions <- function(x,
   dat_prog$geom <- gprog
   dat_prog <- sf::st_as_sf(dat_prog)
 
+  # Apply cookie cutter if defined
+  if (!is.null(cookie_cutter)) {
+    # Do fast st_intersects check first to save time
+    ii <- which( lengths( sf::st_intersects(dat_prog, cookie_cutter) ) > 0 )
+    if (length(ii) > 0) {
+      dat_prog <- dat_prog %>%
+        sf::st_intersection(cookie_cutter[ii, ]) %>%
+        .remove_non_polygonal()
+    }
+  }
+
   dat_prog
+}
+
+
+# Non-exported helper function to remove features from an sf data frame
+# with non-polygonal geometries
+.remove_non_polygonal <- function(x) {
+  ok <- !sf::st_is_empty(x) & sf::st_geometry_type(x) %in% c("POLYGON", "MULTIPOLYGON")
+
+  # Return valid polygon records / geometries
+  if (inherits(x, "sf")) x[ok, ]
+  else if (inherits(x, "sfc")) x[ok]
+  else stop("Input should be an 'sf' or 'sfc' object")
 }
 
