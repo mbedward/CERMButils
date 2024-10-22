@@ -137,10 +137,9 @@ make_progressions <- function(x,
     cookie_cutter <- sf::st_crop(cookie_cutter, bb_x)
 
     if (nrow(cookie_cutter) == 0) {
-      warning("There is no overlap between the cookie_cutter and fire extent polygons",
-              immediate. = TRUE)
-
-      cookie_cutter <- NULL
+      # There is no overlap between the cookie cutter and the bounding box of the fire extent
+      # polygons, so there's nothing to do.
+      return(NULL)
     }
   }
 
@@ -277,10 +276,25 @@ make_progressions <- function(x,
   if (!is.null(cookie_cutter)) {
     # Do fast st_intersects check first to save time
     ii <- which( lengths( sf::st_intersects(dat_prog, cookie_cutter) ) > 0 )
+
     if (length(ii) > 0) {
-      dat_prog <- dat_prog %>%
-        sf::st_intersection(cookie_cutter[ii, ]) %>%
-        .remove_non_polygonal()
+      dat_prog <- suppressWarnings({
+        # Note: just intersect with the cookie geometry to avoid picking up
+        # unwanted columns if `cookie_cutter` is an sf data frame
+        dat_prog <- sf::st_intersection(dat_prog, sf::st_geometry(cookie_cutter[ii, ]) )
+
+        if (nrow(dat_prog) > 0) {
+          .remove_non_polygonal(dat_prog)
+        } else {
+          # There were no polygonal geometries :(
+          NULL
+        }
+      })
+
+    } else {
+      # All progression polygons are outside the cookie cutter polygons
+      # so discard them by returning NULL
+      dat_prog <- NULL
     }
   }
 
