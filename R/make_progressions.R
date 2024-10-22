@@ -13,6 +13,10 @@
 #'   can be sorted is acceptable. When two or more time columns are specified,
 #'   sorting will be based on the provided order of column names.
 #'
+#' @param extra_cols An optional character vector with the names of additional
+#'   columns to retain in the output layer. The default (\code{NULL}) means no
+#'   additional columns.
+#'
 #' @param cookie_cutter An optional \code{sf} spatial data frame of polygonal
 #'   features that define the outer-most supposed extent of the fire. If
 #'   provided, progression polygons will be clipped and or removed so that none
@@ -53,6 +57,7 @@
 #'
 make_progressions <- function(x,
                               time_cols,
+                              extra_cols = NULL,
                               cookie_cutter = NULL,
                               out_epsg = 8058,
                               min_geom_area = 100,
@@ -95,6 +100,19 @@ make_progressions <- function(x,
     msg <- paste(time_cols[!ok], collapse = ", ")
     msg <- glue::glue("Missing time column(s): {msg}")
     stop(msg)
+  }
+
+  # Check the optional names of columns specified for extra data to copy to the output
+  if (length(extra_cols) > 0) {
+    checkmate::assert_character(extra_cols, unique = FALSE, any.missing = FALSE)
+    ok <- extra_cols %in% colnames(x)
+    if (!all(ok)) {
+      msg <- paste(extra_cols[!ok], collapse = ", ")
+      msg <- glue::glue("Specified extra column(s) not in the input data: {msg}")
+      stop(msg)
+    }
+  } else {
+    extra_cols <- NULL
   }
 
   checkmate::assert_number(min_geom_area, lower = 0)
@@ -267,7 +285,7 @@ make_progressions <- function(x,
   ilen <- lengths(gprog)
   indices <- rep(seq_along(ilen), ilen) + 1
 
-  dat_prog <- sf::st_drop_geometry( x[indices, time_cols] )
+  dat_prog <- sf::st_drop_geometry( x[indices, c(time_cols, extra_cols)] )
   gprog <- do.call(c, gprog)
   dat_prog$geom <- gprog
   dat_prog <- sf::st_as_sf(dat_prog)
