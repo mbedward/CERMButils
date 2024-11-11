@@ -13,10 +13,6 @@
 #'   can be sorted is acceptable. When two or more time columns are specified,
 #'   sorting will be based on the provided order of column names.
 #'
-#' @param extra_cols An optional character vector with the names of additional
-#'   columns to retain in the output layer. The default (\code{NULL}) means no
-#'   additional columns.
-#'
 #' @param cookie_cutter An optional \code{sf} spatial data frame of polygonal
 #'   features that define the outer-most supposed extent of the fire. If
 #'   provided, progression polygons will be clipped and or removed so that none
@@ -45,11 +41,6 @@
 #'   The default is \code{'merge'}. The argument may be abbreviated and is
 #'   case-sensitive.
 #'
-#' @param dTolerance Distance tolerance used to simplify the input extent
-#'   polygons using the \code{\link[sf]{st_simplify}} function. Default is 2 for
-#'   a minimum between vertex distance of 2 metres. Set to 0 to omit the
-#'   simplification step.
-#'
 #' @return An \code{sf} spatial data frame of progression polygons with
 #'   time column(s) copied from the input fire extent data.
 #'
@@ -57,13 +48,11 @@
 #'
 make_progressions <- function(x,
                               time_cols,
-                              extra_cols = NULL,
                               cookie_cutter = NULL,
                               out_epsg = 8058,
                               min_geom_area = 100,
                               unique_geom = TRUE,
-                              replicate_times = c('merge', 'largest', 'smallest', 'fail'),
-                              dTolerance = 2) {
+                              replicate_times = c('merge', 'largest', 'smallest', 'fail') ) {
 
   checkmate::assert_class(x, "sf")
 
@@ -90,9 +79,6 @@ make_progressions <- function(x,
   # Transform the input extent polygons into the output CRS if required
   x <- sf::st_transform(x, out_epsg)
 
-  # Check distance tolerance used to optionally generalize polygon vertices
-  checkmate::assert_number(dTolerance, lower = 0)
-
   # Check the column(s) specified for time
   checkmate::assert_character(time_cols, min.len = 1, any.missing = FALSE)
   ok <- time_cols %in% colnames(x)
@@ -100,19 +86,6 @@ make_progressions <- function(x,
     msg <- paste(time_cols[!ok], collapse = ", ")
     msg <- glue::glue("Missing time column(s): {msg}")
     stop(msg)
-  }
-
-  # Check the optional names of columns specified for extra data to copy to the output
-  if (length(extra_cols) > 0) {
-    checkmate::assert_character(extra_cols, unique = FALSE, any.missing = FALSE)
-    ok <- extra_cols %in% colnames(x)
-    if (!all(ok)) {
-      msg <- paste(extra_cols[!ok], collapse = ", ")
-      msg <- glue::glue("Specified extra column(s) not in the input data: {msg}")
-      stop(msg)
-    }
-  } else {
-    extra_cols <- NULL
   }
 
   checkmate::assert_number(min_geom_area, lower = 0)
@@ -150,15 +123,16 @@ make_progressions <- function(x,
     cookie_cutter <- .remove_non_polygonal(cookie_cutter)
     if (nrow(cookie_cutter) == 0) stop("No polygonal features in the sf data frame set for argument cookie_cutter")
 
-    # Subset cookie cutter polygons to those that intersect the bounding box of the extent polygons
-    bb_x <- sf::st_bbox(x)
-    cookie_cutter <- sf::st_crop(cookie_cutter, bb_x)
+    # Subset cookie cutter polygons to those that intersect the extent polygons
+    ii <- which(lengths(sf::st_intersects(cookie_cutter, x)) > 0)
 
-    if (nrow(cookie_cutter) == 0) {
-      # There is no overlap between the cookie cutter and the bounding box of the fire extent
-      # polygons, so there's nothing to do.
+    if (length(ii) == 0) {
+      # There is no overlap between the cookie cutter and the fire extent
+      # polygons, so nothing to do.
       return(NULL)
     }
+
+    cookie_cutter <- cookie_cutter[ii, ]
   }
 
   # If requested, subset the input data to unique geometries by taking the
@@ -185,9 +159,25 @@ make_progressions <- function(x,
       stop(msg)
 
     } else if (replicate_times == "merge") {
+      # Add a temporary row index
       x <- x %>%
+        dplyr::mutate(.row_index__ = dplyr::row_number())
+
+      # Merge geometries
+      xmerge <- x %>%
         dplyr::group_by(dplyr::across(dplyr::all_of(time_cols))) %>%
-        dplyr::summarize(geom = sf::st_union(geom))
+        dplyr::summarize(geom = sf::st_union(geom), .row_index__ = min(.row_index__)) %>%
+        dplyr::ungroup()
+
+      # Now put the merged sf data frame back together
+      x <- x %>%
+        sf::st_drop_geometry() %>%
+        dplyr::filter(.row_index__ %in% xmerge[[".row_index__"]]) %>%
+        dplyr::left_join(xmerge, by = c(time_cols, ".row_index__")) %>%  # Need to specify time cols here to avoid duplicating them
+        sf::st_as_sf()
+
+      x <- x %>% dplyr::select(-.row_index__)
+
 
     } else {  # 'largest' or 'smallest'
       # Choose one record per time based on the largest or smallest feature area
@@ -211,13 +201,6 @@ make_progressions <- function(x,
         dplyr::ungroup() %>%
         dplyr::select(-.area_)
     }
-  }
-
-
-  # Generalize the feature geometries if requested
-  if (dTolerance > 0) {
-    x <- sf::st_simplify(x, dTolerance = dTolerance)
-    if (!is.null(cookie_cutter)) cookie_cutter <- sf::st_simplify(cookie_cutter, dTolerance = dTolerance)
   }
 
 
@@ -283,9 +266,9 @@ make_progressions <- function(x,
 
   # Combine the progression polygons and the relevant input attribute rows
   ilen <- lengths(gprog)
-  indices <- rep(seq_along(ilen), ilen) + 1
+  indices <- rep(seq_along(ilen), ilen)
 
-  dat_prog <- sf::st_drop_geometry( x[indices, c(time_cols, extra_cols)] )
+  dat_prog <- sf::st_drop_geometry( x[indices, ] )
   gprog <- do.call(c, gprog)
   dat_prog$geom <- gprog
   dat_prog <- sf::st_as_sf(dat_prog)
