@@ -7,13 +7,11 @@
 make_progressions(
   x,
   time_cols,
-  extra_cols = NULL,
   cookie_cutter = NULL,
   out_epsg = 8058,
   min_geom_area = 100,
   unique_geom = TRUE,
-  replicate_times = c("merge", "largest", "smallest", "fail"),
-  dTolerance = 2
+  replicate_times = c("merge", "largest", "smallest", "fail")
 )
 }
 \arguments{
@@ -25,10 +23,6 @@ the time steps for the progressions. Normally a time column will will hold
 a Date or Date-Time value (e.g. POSIX.ct) but any scalar variable type that
 can be sorted is acceptable. When two or more time columns are specified,
 sorting will be based on the provided order of column names.}
-
-\item{extra_cols}{An optional character vector with the names of additional
-columns to retain in the output layer. The default (\code{NULL}) means no
-additional columns.}
 
 \item{cookie_cutter}{An optional \code{sf} spatial data frame of polygonal
 features that define the outer-most supposed extent of the fire. If
@@ -57,11 +51,6 @@ more than one input data record for any time step. Options are:
 \code{'fail'} (stop with an error message).
 The default is \code{'merge'}. The argument may be abbreviated and is
 case-sensitive.}
-
-\item{dTolerance}{Distance tolerance used to simplify the input extent
-polygons using the \code{\link[sf]{st_simplify}} function. Default is 2 for
-a minimum between vertex distance of 2 metres. Set to 0 to omit the
-simplification step.}
 }
 \value{
 An \code{sf} spatial data frame of progression polygons with
