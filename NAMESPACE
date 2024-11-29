@@ -3,5 +3,5 @@
 export("%>%")
 export(get_progression_times)
 export(make_progressions)
-export(make_sample_points)
+export(make_sample_lines)
 importFrom(magrittr,"%>%")
