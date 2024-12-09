@@ -178,11 +178,63 @@ get_progression_times <- function(prog,
     res
   })
 
+  # Note: we can't use rbind to combine the results because POSIX date-time values
+  # will end up being converted to integers (https://stackoverflow.com/a/70736094/40246).
+  # However, dplyr::bind_rows appears to work.
+  #
+  res <- dplyr::bind_rows(res)
 
-  res <- do.call(rbind, res)
+  # At this stage we might have some result geometries that are not LINESTRINGs.
+  # This can happen for various reasons including:
+  #
+  # - a sampling line crossing two progression polygons where one is inside the other, which
+  #   results in a MULTILINESTRING geometry with parts either side of the inner polygon;
+  #
+  # - a sampling line that just touches a progression polygon, resulting in a
+  #   POINT geometry;
+  #
+  # - a combination of these cases which can result in a GEOMETRYCOLLECTION containing
+  #   POINT and LINESTRING geometries.
+  #
+  # We deal with all this by doing the following:
+  # - extract just the LINESTRING(s) from any GEOMETRYCOLLECTIONs;
+  # - discard any POINTs;
+  # - cast all resulting geometries to LINESTRINGS;
+  # - stop with an error if any other geometry types are encountered.
+  #
+
+  gtype <- sf::st_geometry_type(res, by_geometry = TRUE)
+
+  # Deal with any collections
+  ii <- gtype == "GEOMETRYCOLLECTION"
+  if (any(ii)) {
+    linerecs <- sf::st_collection_extract(res[ii, ], "LINESTRING")
+
+    res <- res[!ii, ]
+
+    if (nrow(linerecs) > 0) res <- dplyr::bind_rows(res, linerecs)
+
+    # Refresh the gtype vector
+    gtype <- sf::st_geometry_type(res, by_geometry = TRUE)
+  }
+
+  ok <- gtype %in% c("POINT", "LINESTRING", "MULTILINESTRING")
+  if (!all(ok)) {
+    msg <- glue::glue("Bummer: sampling results include the following invalid geometry type(s):
+                       {unique(gtype[!ok])}")
+    stop(msg)
+  }
+
+  is_line <- gtype %in% c("LINESTRING", "MULTILINESTRING")
+  res <- suppressWarnings({
+    res[is_line, ] %>%
+      sf::st_cast("MULTILINESTRING") %>%
+      sf::st_cast("LINESTRING")
+  })
 
   res <- res %>%
-    dplyr::select(dplyr::all_of(sampline_idcols), dplyr::all_of(datetimecol), dplyr::everything())
+    dplyr::select(dplyr::all_of(sampline_idcols), dplyr::all_of(datetimecol), dplyr::everything()) %>%
+    dplyr::arrange(dplyr::across(dplyr::all_of(sampline_idcols)), segment_distance)
 
   res
 }
