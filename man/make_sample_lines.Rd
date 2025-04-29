@@ -54,22 +54,36 @@ positioned at the intersection of the sampling line and the reference
 back-burning line.}
 }
 \value{
-An \code{sf} spatial data frame of sample point features with the
-  following columns:
+A named list containing two \code{sf} spatial data frames:
+  \code{'sample_lines'} and \code{'bb_segments'}. The \code{'sample_lines'}
+  data frame has the following columns:
+  \itemize{
+  \item{\code{refid} Identifier of the back-burning line feature, as taken
+  from the input data column specified by the \code{bb_id} argument.}
 
-  \code{refid} Identifier of the input back-burning line feature that a point
-  is sampling, with values taken from the input data column specified by the
-  \code{bb_id} argument.
+  \item{\code{line_index} Integer index (from 1) of the sampling line within
+  the given back-burning line.}
 
-  \code{line_index} Integer index (from 1) of the sampling lines within a
-  given back-burning line.
+  \item{\code{segment} Either \code{'L'} or \code{'R'} indicating the position
+  of the sampling line on the left or right of the back-burning line. Note
+  that left and right, as used here, are simply relative to the digitizing
+  direction (i.e. order of vertices) of the back-burning.}
 
-  \code{segment} Either \code{'L'} or \code{'R'} indicating the position of
-  the sampling line on the left or right of the back-burning line. Note that
-  left and right, as used here, are simply relative to the digitizing
-  direction (i.e. order of vertices) of the back-burning line.
+  \item{\code{geom} The sampling line geometry (\code{LINESTRING}).}
+  }
 
-  \code{geom} The feature geometry (\code{LINESTRING}).
+  The \code{'bb_segments'} data frame contains line features, each of which
+  is the segment of a back-burning line that is closest to a given sampling
+  line. The data frame has the following columns:
+  \itemize{
+  \item{\code{refid} Identifier of the back-burning line feature, as taken
+  from the input data column specified by the \code{bb_id} argument.}
+
+  \item{\code{line_index} Integer index (from 1) of the sampling lines within a
+  given back-burning line.}
+
+  \item{\code{geom} The line segment geometry (\code{LINESTRING}).}
+  }
 }
 \description{
 Given a set of input line features representing back-burning lines, this
@@ -100,10 +114,14 @@ dat_bb <- st_read(...)
 # will be trimmed to avoid the line approaching the parent or other
 # back-burning lines too closely.
 #
-dat_sample_points <- make_sample_points(bb,
-                                        line_spacing = 1000,
-                                        line_half_length = 5000,
-                                        trim_by = "all")
+res <- make_sample_lines(bb,
+                         line_spacing = 1000,
+                         line_half_length = 5000,
+                         trim_by = "all")
+
+# res is a list containing two sf data frames
+head(res$sample_lines)
+head(res$bb_segments)
 }
 
 }
