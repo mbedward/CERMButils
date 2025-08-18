@@ -264,15 +264,28 @@ get_group_line <- function(lines, group_ids = NULL, buffer_dist = 25, progress =
       # rectangle
       c_line <- sf::st_intersection(c_line, bb)
 
-      g <- sf::st_sfc(c_line, crs = CRS)
+      # Check if the derived line has more than one part. This can happen if the
+      # current group of lines includes one or more members that are more than 2
+      # x buffer_dist apart. At the moment we don't have a good way of dealing
+      # with this so we just reject the group and issue a warning message
+      #
+      if (length(c_line) > 1) {
+        msg <- glue::glue("Unable to derive a single line for group id {id}")
 
+        if (progress) {
+          pb$message(msg)
+        } else {
+          warning(msg, immediate. = TRUE)
+        }
 
-      # Calculate Hausdorff distance between the average line and the union of
-      # the group lines to find the worst-case distance as a measure of how
-      # well the average line represents the group
-      maxdist = sf::st_distance(ulines, g, which = "Hausdorff")
+      } else {
+        # Calculate Hausdorff distance between the average line and the union of
+        # the group lines to find the worst-case distance as a measure of how
+        # well the average line represents the group
+        maxdist = sf::st_distance(ulines, c_line, which = "Hausdorff")
 
-      res <- sf::st_sf(id = id, maxdist = maxdist, geom = g)
+        res <- sf::st_sf(id = id, maxdist = maxdist, geom = c_line)
+      }
     }
 
     if (progress) pb$tick()
