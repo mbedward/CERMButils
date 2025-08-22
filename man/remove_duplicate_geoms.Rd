@@ -33,15 +33,14 @@ points.
 
   # Identify groups of features with identical geometries and retain a
   # single feature for each group
-  dat_firelines_unique <- remove_duplicates(dat_firelines)
+  dat_firelines_unique <- remove_duplicate_geoms(dat_firelines)
 
   # For each group of features, retain the one with the latest
   # date-time value
-  #
-  dat_firelines_latest <- remove_duplicates(dat_firelines, desc(ADDEDDATETIME))
+  dat_firelines_latest <- remove_duplicate_geoms(dat_firelines, desc(ADDEDDATETIME))
 
   # Alternatively, retain the feature with the earliest date-time value
-  dat_firelines_earliest <- remove_duplicates(dat_firelines, ADDEDDATETIME)
+  dat_firelines_earliest <- remove_duplicate_geoms(dat_firelines, ADDEDDATETIME)
 }
 
 }
