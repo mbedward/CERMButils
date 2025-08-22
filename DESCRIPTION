@@ -1,8 +1,8 @@
 Package: CERMButils
 Type: Package
 Title: Miscellaneous functions for analysis of bushfire data
-Version: 0.1.17
-Date: 2025-08-18
+Version: 0.1.18
+Date: 2025-08-22
 Description: Miscellaneous utility functions to work with bushfire data. Written 
     for use in the Centre for Environmental Risk Management of Bushfires, 
     University of Wollongong, Australia.
@@ -24,6 +24,7 @@ Imports:
     lwgeom,
     magrittr,
     progress,
+    rlang,
     sf,
     units
 RoxygenNote: 7.3.2
