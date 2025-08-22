@@ -35,7 +35,10 @@ distance between them is less than a threshold distance, specified via the
 (\code{max_nbr_dist}) argument.
 }
 \details{
-\emph{Beware}: this function is not yet smart enough to distinguish between a
+This function can be very slow when working with a large set of line
+features and there is presently no option to run the function in parallel.
+
+\strong{Note}: this function is not yet smart enough to distinguish between a
 tightly clustered set of lines on the one hand, and a more dispersed set in
 which pairs of lines are closer to each other than the specified threshold
 distance. For example, lines forming a ladder arrangement over a substantial
