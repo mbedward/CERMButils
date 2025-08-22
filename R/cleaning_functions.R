@@ -1,3 +1,66 @@
+#' Remove features with duplicate geometries
+#'
+#' Line data for back-burns often contains a large number of exact spatial
+#' duplicates, i.e. the same geometry. This function identifies groups of such
+#' duplicates and subsets each group to a single feature by discarding all but
+#' the first feature in the group. Optionally, other line attributes can be used
+#' to order the line features before selecting the feature to retain by
+#' supplying further arguments using the same bare variable name form as used
+#' with the \code{arrange} function in the \code{dplyr} package (see example
+#' below).
+#'
+#' This function can also be used for other types of features, e.g. polygons or
+#' points.
+#'
+#' @param x An \code{'sf'} spatial data frame.
+#'
+#' @param ... Optional further arguments to specify the ordering for each group
+#'   of features with identical geometries. Ordering is specified using the same
+#'   syntax as with the \code{dplyr} \code{\link[dplyr]{arrange}} function.
+#'
+#' @examples
+#' \dontrun{
+#'   library(CERMButils)
+#'
+#'   # Identify groups of features with identical geometries and retain a
+#'   # single feature for each group
+#'   dat_firelines_unique <- remove_duplicates(dat_firelines)
+#'
+#'   # For each group of features, retain the one with the latest
+#'   # date-time value
+#'   #
+#'   dat_firelines_latest <- remove_duplicates(dat_firelines, desc(ADDEDDATETIME))
+#'
+#'   # Alternatively, retain the feature with the earliest date-time value
+#'   dat_firelines_earliest <- remove_duplicates(dat_firelines, ADDEDDATETIME)
+#' }
+#'
+#' @export
+#
+remove_duplicate_geoms <- function(x, ...) {
+  checkmate::assert_class(x, "sf")
+
+  dots <- rlang::enquos(...)
+
+  input_geom_name <- attr(x, "sf_column", exact = TRUE)
+  sf::st_geometry(x) <- "geom"
+
+  x <- dplyr::group_by(x, geom)
+
+  if (length(dots) > 0) {
+    x <- dplyr::arrange(x, !!!dots)
+  }
+
+  x <- dplyr::slice_head(x, n=1) %>%
+    dplyr::ungroup()
+
+  sf::st_geometry(x) <- input_geom_name
+
+  x
+}
+
+
+
 #' Identify groups of similar line features
 #'
 #' Layers of line features representing back-burning sometimes contain groups of
