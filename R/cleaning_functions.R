@@ -323,18 +323,26 @@ get_group_line <- function(lines, group_ids = NULL, buffer_dist = 25, progress =
 
       buf_poly <- sf::st_buffer(ulines, dist = buffer_dist, endCapStyle = 'ROUND')
 
-      c_line <- centerline::cnt_path_guess(buf_poly, keep = 5)
+      c_line <- tryCatch(
+        centerline::cnt_path_guess(buf_poly, keep = 5),
+        error = function(...) NULL)
 
-      # Return the portion of the inferred centre line within the bounding
-      # rectangle
-      c_line <- sf::st_intersection(c_line, bb)
+      OK <- !is.null(c_line)
 
-      # Check if the derived line has more than one part. This can happen if the
-      # current group of lines includes one or more members that are more than 2
-      # x buffer_dist apart. At the moment we don't have a good way of dealing
-      # with this so we just reject the group and issue a warning message
-      #
-      if (length(c_line) > 1) {
+      if (OK) {
+        # Return the portion of the inferred centre line within the bounding
+        # rectangle
+        c_line <- sf::st_intersection(c_line, bb)
+
+        # Check if the derived line has more than one part. This can happen if the
+        # current group of lines includes one or more members that are more than 2
+        # x buffer_dist apart. At the moment we don't have a good way of dealing
+        # with this so we just reject the group.
+        #
+        if (length(c_line) > 1) OK <- FALSE
+      }
+
+      if (!OK) {
         msg <- glue::glue("Unable to derive a single line for group id {id}")
 
         if (progress) {
