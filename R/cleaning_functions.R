@@ -352,6 +352,11 @@ get_group_line <- function(lines, group_ids = NULL, buffer_dist = 25, progress =
         }
 
       } else {
+        # The group lines from the `centerline` package function tend to have
+        # an excessive density of vertices. Simplify the line a little to
+        # reduce the memory and file size required.
+        c_line <- sf::st_simplify(c_line, dTolerance = 2)
+
         # Calculate Hausdorff distance between the average line and the union of
         # the group lines to find the worst-case distance as a measure of how
         # well the average line represents the group
