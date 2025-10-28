@@ -132,7 +132,9 @@ make_progressions <- function(x,
       return(NULL)
     }
 
-    cookie_cutter <- cookie_cutter[ii, ]
+    # Only retain the cookie cutter geometry to avoid carrying over its attributes
+    # to the output when it is used
+    cookie_cutter <- sf::st_geometry(cookie_cutter)
   }
 
   # If requested, subset the input data to unique geometries by taking the
@@ -275,14 +277,14 @@ make_progressions <- function(x,
 
   # Apply cookie cutter if defined
   if (!is.null(cookie_cutter)) {
-    # Do fast st_intersects check first to save time
+    # Do fast st_intersects check first to save time.
+    # Note: The index vector `ii` will identify the progression features that
+    # intersect with cookie polygons
     ii <- which( lengths( sf::st_intersects(dat_prog, cookie_cutter) ) > 0 )
 
     if (length(ii) > 0) {
       dat_prog <- suppressWarnings({
-        # Note: just intersect with the cookie geometry to avoid picking up
-        # unwanted columns if `cookie_cutter` is an sf data frame
-        dat_prog <- sf::st_intersection(dat_prog, sf::st_geometry(cookie_cutter[ii, ]) )
+        dat_prog <- sf::st_intersection(dat_prog[ii, ], cookie_cutter)
 
         if (nrow(dat_prog) > 0) {
           .remove_non_polygonal(dat_prog)
