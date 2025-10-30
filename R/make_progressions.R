@@ -132,9 +132,9 @@ make_progressions <- function(x,
       return(NULL)
     }
 
-    # Only retain the cookie cutter geometry to avoid carrying over its attributes
-    # to the output when it is used
-    cookie_cutter <- sf::st_geometry(cookie_cutter)
+    # Only retain the overlapping cookie cutter geometry to avoid carrying over
+    # its attributes to the output when it is used
+    cookie_cutter <- sf::st_geometry(cookie_cutter[ii,])
   }
 
   # If requested, subset the input data to unique geometries by taking the
@@ -248,11 +248,6 @@ make_progressions <- function(x,
         if (any(ok)) {
           gnew <- gnew[ok]
 
-          # Cookie cutter the new feature
-          gnew <- gnew
-
-          # Guard against the new feature not being a valid polygon
-
           # Update outer extent so far
           gouter <<- sf::st_union(gouter, gnew) %>%
             sf::st_union() %>%  # second call to dissolve internal boundaries
@@ -284,10 +279,10 @@ make_progressions <- function(x,
 
     if (length(ii) > 0) {
       dat_prog <- suppressWarnings({
-        dat_prog <- sf::st_intersection(dat_prog[ii, ], cookie_cutter)
+        cookies <- sf::st_intersection(dat_prog[ii, ], cookie_cutter)
 
-        if (nrow(dat_prog) > 0) {
-          .remove_non_polygonal(dat_prog)
+        if (nrow(cookies) > 0) {
+          .remove_non_polygonal(cookies)
         } else {
           # There were no polygonal geometries :(
           NULL
@@ -301,6 +296,18 @@ make_progressions <- function(x,
     }
   }
 
+  # Run final checks for any non-polygonal, invalid or excessively small
+  # progressions
+  #
+  dat_prog <- .remove_non_polygonal(dat_prog)
+
+  ok <- sf::st_is_valid(dat_prog)
+  dat_prog <- dat_prog[ok,]
+
+  ok <- as.numeric(sf::st_area(dat_prog)) >= min_geom_area
+  dat_prog <- dat_prog[ok,]
+
+  # That's all folks
   dat_prog
 }
 
